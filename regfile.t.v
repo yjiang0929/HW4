@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// Test harness validates hw4testbench by connecting it to various functional 
+// Test harness validates hw4testbench by connecting it to various functional
 // or broken register files, and verifying that it correctly identifies each
 //------------------------------------------------------------------------------
 
@@ -17,7 +17,7 @@ module hw4testbenchharness();
   wire		Clk;		// Clock (Positive Edge Triggered)
 
   reg		begintest;	// Set High to begin testing register file
-  wire  	endtest;    	// Set High to signal test completion 
+  wire  	endtest;    	// Set High to signal test completion
   wire		dutpassed;	// Indicates whether register file passed tests
 
   // Instantiate the register file being tested.  DUT = Device Under Test
@@ -37,15 +37,15 @@ module hw4testbenchharness();
   hw4testbench tester
   (
     .begintest(begintest),
-    .endtest(endtest), 
+    .endtest(endtest),
     .dutpassed(dutpassed),
     .ReadData1(ReadData1),
     .ReadData2(ReadData2),
-    .WriteData(WriteData), 
-    .ReadRegister1(ReadRegister1), 
+    .WriteData(WriteData),
+    .ReadRegister1(ReadRegister1),
     .ReadRegister2(ReadRegister2),
     .WriteRegister(WriteRegister),
-    .RegWrite(RegWrite), 
+    .RegWrite(RegWrite),
     .Clk(Clk)
   );
 
@@ -93,6 +93,7 @@ output reg[4:0]		WriteRegister,
 output reg		RegWrite,
 output reg		Clk
 );
+  integer index;
 
   // Initialize register driver signals
   initial begin
@@ -110,7 +111,7 @@ output reg		Clk
     dutpassed = 1;
     #10
 
-  // Test Case 1: 
+  // Test Case 1:
   //   Write '42' to register 2, verify with Read Ports 1 and 2
   //   (Passes because example register file is hardwired to return 42)
   WriteRegister = 5'd2;
@@ -124,9 +125,10 @@ output reg		Clk
   if((ReadData1 !== 42) || (ReadData2 !== 42)) begin
     dutpassed = 0;	// Set to 'false' on failure
     $display("Test Case 1 Failed");
+    $display("Test result: %d %d", ReadData1, ReadData2);
   end
 
-  // Test Case 2: 
+  // Test Case 2:
   //   Write '15' to register 2, verify with Read Ports 1 and 2
   //   (Fails with example register file, but should pass with yours)
   WriteRegister = 5'd2;
@@ -139,8 +141,86 @@ output reg		Clk
   if((ReadData1 !== 15) || (ReadData2 !== 15)) begin
     dutpassed = 0;
     $display("Test Case 2 Failed");
+    $display("Test result: %d %d", ReadData1, ReadData2);
   end
 
+  // Test Case 3:
+  //   Test if enable is broken
+  WriteRegister = 5'd2;
+  WriteData = 32'd42;
+  RegWrite = 0;
+  ReadRegister1 = 5'd2;
+  ReadRegister2 = 5'd2;
+  #5 Clk=1; #5 Clk=0;	// Generate single clock pulse
+
+  // Verify expectations and report test result
+  if((ReadData1 !== 15) || (ReadData2 !== 15)) begin
+    dutpassed = 0;	// Set to 'false' on failure
+    $display("Test Case 3 Failed! Enable may be broken");
+    $display("Test result: %d %d", ReadData1, ReadData2);
+  end
+
+  // Test Case 4:
+  //   Test if register 0 is broken
+  WriteRegister = 5'd0;
+  WriteData = 32'd42;
+  RegWrite = 1;
+  ReadRegister1 = 5'd0;
+  ReadRegister2 = 5'd0;
+  #5 Clk=1; #5 Clk=0;	// Generate single clock pulse
+
+  // Verify expectations and report test result
+  if((ReadData1 !== 0) || (ReadData2 !== 0)) begin
+    dutpassed = 0;	// Set to 'false' on failure
+    $display("Test Case 4 Failed! Register 0 may be broken");
+    $display("Test result: %d %d", ReadData1, ReadData2);
+  end
+
+  // Test Case 5,6,7:
+  //   Test if every register can be written and also test if port1 or port2 is broken
+  for (index=1;index<=31;index=index+1) begin
+    WriteRegister = index;
+    WriteData = index;
+    RegWrite = 1;
+    ReadRegister1 = index;
+    ReadRegister2 = index;
+    #5 Clk=1; #5 Clk=0;	// Generate single clock pulse
+
+    // Verify expectations and report test result
+    if((ReadData1 !== index) && (ReadData2 !== index)) begin
+      dutpassed = 0;	// Set to 'false' on failure
+      $display("Test Case 5 Failed! WriteRegister No.%d may be broken", index);
+      $display("Test result: %d %d", ReadData1, ReadData2);
+    end
+    if((ReadData1 !== index) && (ReadData2 == index)) begin
+      dutpassed = 0;	// Set to 'false' on failure
+      $display("Test Case 6 Failed! ReadRegister1 No.%d may be broken", index);
+      $display("Test result: %d %d", ReadData1, ReadData2);
+    end
+    if((ReadData1 == index) && (ReadData2 !== index)) begin
+      dutpassed = 0;	// Set to 'false' on failure
+      $display("Test Case 7 Failed! ReadRegister2 No.%d may be broken", index);
+      $display("Test result: %d %d", ReadData1, ReadData2);
+    end
+  end
+
+  // Test Case 8:
+  //   Test if decoder is broken, and input goes into other ports
+  for (index=1;index<=31;index=index+1) begin
+    WriteRegister = index;
+    WriteData = index;
+    RegWrite = 1;
+    ReadRegister1 = (index+1)%32;
+    ReadRegister2 = (index+10)%32;
+    #5 Clk=1; #5 Clk=0;	// Generate single clock pulse
+
+    // Verify expectations and report test result
+    if((ReadData1 == index) || (ReadData2 == index)) begin
+      dutpassed = 0;	// Set to 'false' on failure
+      $display("Test Case 8 Failed! Decoder may be broken");
+      $display("Test result: %d %d", ReadData1, ReadData2);
+    end
+  end
 
   // All done!  Wait a moment and signal test completion.
   #5
